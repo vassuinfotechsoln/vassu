@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  prompt      String
+  voice       String   @default("alloy")
+  language    String   @default("en")
+  temperature Float    @default(0.7)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  calls       Call[]
+
+  @@map("agents")
+}
+
+model Call {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  agentId     String      @db.ObjectId
+  phoneNumber String
+  direction   CallDirection
+  status      CallStatus  @default(INITIATED)
+  duration    Int?
+  startedAt   DateTime    @default(now())
+  endedAt     DateTime?
+  agent       Agent       @relation(fields: [agentId], references: [id])
+  transcripts Transcript[]
+
+  @@map("calls")
+}
+
+model Transcript {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  callId    String   @db.ObjectId
+  speaker   String
+  text      String
+  timestamp DateTime @default(now())
+  call      Call     @relation(fields: [callId], references: [id])
+
+  @@map("transcripts")
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  INITIATED
+  RINGING
+  ANSWERED
+  COMPLETED
+  FAILED
+}

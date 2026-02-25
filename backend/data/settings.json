@@ -1,0 +1,10 @@
+{
+  "twilioAccountSid": "",
+  "twilioAuthToken": "",
+  "twilioPhoneNumber": "",
+  "groqApiKey": "",
+  "elevenlabsApiKey": "",
+  "assemblyaiApiKey": "",
+  "defaultLanguage": "en",
+  "defaultVoice": "Rachel"
+}
