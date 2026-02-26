@@ -9,6 +9,7 @@ const callRoutes = require("./src/routes/calls");
 const agentRoutes = require("./src/routes/agents");
 const transcriptRoutes = require("./src/routes/transcripts");
 const settingsRoutes = require("./src/routes/settings");
+const authRoutes = require("./src/routes/auth");
 const RealtimeService = require("./src/services/RealtimeService");
 
 const PORT = process.env.PORT || 3001;
@@ -16,24 +17,33 @@ const PORT = process.env.PORT || 3001;
 // ─── Auto-kill any process using our port before starting ───────────────────
 function freePort(port) {
   try {
-    const result = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf8" });
+    const result = execSync(`netstat -ano | findstr :${port}`, {
+      encoding: "utf8",
+    });
     const lines = result.trim().split("\n");
     const killed = new Set();
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       const pid = parts[parts.length - 1];
       // Only kill LISTENING processes on our port, not random connections
-      if (pid && /^\d+$/.test(pid) && !killed.has(pid) && line.includes("LISTENING")) {
+      if (
+        pid &&
+        /^\d+$/.test(pid) &&
+        !killed.has(pid) &&
+        line.includes("LISTENING")
+      ) {
         try {
           execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
           console.log(`🔪 Killed old process PID ${pid} on port ${port}`);
           killed.add(pid);
-        } catch (_) { }
+        } catch (_) {}
       }
     }
     if (killed.size > 0) {
       // Small wait for OS to free the port
-      execSync("timeout /t 1 /nobreak >nul 2>&1 || sleep 1", { stdio: "ignore" });
+      execSync("timeout /t 1 /nobreak >nul 2>&1 || sleep 1", {
+        stdio: "ignore",
+      });
     }
   } catch (_) {
     // netstat found nothing — port is already free
@@ -48,15 +58,18 @@ const server = createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // Middleware
-app.use(cors({
-  origin: "*", // Allow all origins for dev — restrict in production
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
+app.use(
+  cors({
+    origin: "*", // Allow all origins for dev — restrict in production
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/transcripts", transcriptRoutes);
@@ -111,7 +124,9 @@ app.use((err, req, res, next) => {
 // Server error handler (last resort)
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`❌ Port ${PORT} still busy after auto-kill. Please close your terminal and try again.`);
+    console.error(
+      `❌ Port ${PORT} still busy after auto-kill. Please close your terminal and try again.`,
+    );
   } else {
     console.error("Server error:", err);
   }

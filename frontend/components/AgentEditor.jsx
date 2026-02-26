@@ -20,6 +20,7 @@ import {
   Database,
   Link2,
   FileText,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -326,8 +327,8 @@ export default function AgentEditor({ agent, onSave, onCancel }) {
                     className={cn(
                       "p-5 rounded-2xl border-2 flex items-center justify-between transition-all duration-300",
                       formData.voice === v.value
-                        ? "border-indigo-500 bg-indigo-50/50 shadow-md"
-                        : "border-[rgb(var(--color-border))] bg-[rgb(var(--color-background))] hover:border-indigo-300",
+                        ? "border-indigo-500 bg-indigo-500/15 shadow-md shadow-indigo-500/10"
+                        : "border-[rgb(var(--color-border))] bg-[rgb(var(--color-background))] hover:border-indigo-400/60",
                     )}
                   >
                     <div className="flex items-center gap-4">
@@ -335,8 +336,8 @@ export default function AgentEditor({ agent, onSave, onCancel }) {
                         className={cn(
                           "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
                           formData.voice === v.value
-                            ? "bg-indigo-600"
-                            : "bg-slate-200 dark:bg-slate-700",
+                            ? "bg-indigo-500"
+                            : "bg-slate-700/60",
                         )}
                       >
                         <Mic
@@ -349,10 +350,24 @@ export default function AgentEditor({ agent, onSave, onCancel }) {
                         />
                       </div>
                       <div className="text-left">
-                        <div className="font-black text-slate-900 dark:text-white">
+                        <div
+                          className={cn(
+                            "font-black",
+                            formData.voice === v.value
+                              ? "text-indigo-300"
+                              : "text-white",
+                          )}
+                        >
                           {v.label}
                         </div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">
+                        <div
+                          className={cn(
+                            "text-[10px] font-bold uppercase",
+                            formData.voice === v.value
+                              ? "text-indigo-400"
+                              : "text-slate-500",
+                          )}
+                        >
                           {v.gender} · {v.description}
                         </div>
                       </div>
@@ -378,12 +393,19 @@ export default function AgentEditor({ agent, onSave, onCancel }) {
                     className={cn(
                       "p-5 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300",
                       formData.language === l.value
-                        ? "border-indigo-500 bg-indigo-50/50 shadow-md"
-                        : "border-[rgb(var(--color-border))] bg-[rgb(var(--color-background))] hover:border-indigo-300",
+                        ? "border-indigo-500 bg-indigo-500/15 shadow-md shadow-indigo-500/10"
+                        : "border-[rgb(var(--color-border))] bg-[rgb(var(--color-background))] hover:border-indigo-400/60",
                     )}
                   >
                     <span className="text-3xl">{l.flag}</span>
-                    <span className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tighter">
+                    <span
+                      className={cn(
+                        "font-black text-sm uppercase tracking-tighter",
+                        formData.language === l.value
+                          ? "text-indigo-300"
+                          : "text-white",
+                      )}
+                    >
                       {l.label}
                     </span>
                   </button>

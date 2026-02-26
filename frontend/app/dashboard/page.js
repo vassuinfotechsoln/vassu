@@ -270,49 +270,53 @@ export default function Dashboard() {
     systemStatus.find((s) => s.name === "Vassu Gateway")?.online || false;
 
   return (
-    <div className="p-6 lg:p-8 flex flex-col gap-8 animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 flex flex-col gap-6 lg:gap-8 animate-fade-in">
       {/* Header */}
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-[rgb(var(--color-text-primary))]">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[rgb(var(--color-text-primary))]">
             Dashboard <span className="gradient-text">Overview</span>
           </h1>
-          <p className="mt-1 text-[rgb(var(--color-text-secondary))] flex items-center gap-2">
-            <Activity className="w-4 h-4 text-indigo-500" />
-            Real-time monitoring and analytics for your AI voice agents
+          <p className="mt-1 text-sm text-[rgb(var(--color-text-secondary))] flex items-center gap-2">
+            <Activity className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+            <span className="hidden sm:inline">
+              Real-time monitoring and analytics for your AI voice agents
+            </span>
+            <span className="sm:hidden">Real-time AI voice analytics</span>
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div
-            className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl border ${isLiveTelephony ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-amber-500/5 border-amber-500/20 text-amber-600"}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl border text-xs ${isLiveTelephony ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-amber-500/5 border-amber-500/20 text-amber-600"}`}
           >
             <div
-              className={`w-2 h-2 rounded-full ${isLiveTelephony ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${isLiveTelephony ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
             />
-            <span className="text-xs font-black uppercase tracking-widest">
-              {isLiveTelephony ? "Live Telephony" : "Simulation Mode"}
+            <span className="font-black uppercase tracking-widest whitespace-nowrap">
+              {isLiveTelephony ? "Live" : "Sim Mode"}
             </span>
           </div>
           <button
             onClick={fetchCalls}
             disabled={loading}
-            className="btn-base btn-secondary"
+            className="btn-base btn-secondary !px-3"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
             onClick={() => setIsBulkModalOpen(true)}
-            className="btn-base btn-primary"
+            className="btn-base btn-primary !px-3 sm:!px-4"
           >
             <Play className="w-4 h-4" />
-            <span>Bulk Deployment</span>
+            <span className="hidden xs:inline sm:inline">Bulk</span>
+            <span className="hidden sm:inline"> Deploy</span>
           </button>
         </div>
       </header>
 
       {/* Stats Grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {statsConfig.map((stat, i) => (
           <div
             key={i}
@@ -353,12 +357,12 @@ export default function Dashboard() {
 
       {/* Industry Analytics Section */}
       <section
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 animate-slide-up"
         style={{ animationDelay: "200ms" }}
       >
-        <div className="card-elevated p-6 bg-gradient-to-br from-[rgb(var(--color-surface))] to-indigo-500/5">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-black flex items-center gap-2">
+        <div className="card-elevated p-4 sm:p-6 bg-gradient-to-br from-[rgb(var(--color-surface))] to-indigo-500/5">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h3 className="text-base sm:text-lg font-black flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-indigo-500" />
               Performance Distribution
             </h3>
@@ -366,7 +370,7 @@ export default function Dashboard() {
               Real-time
             </span>
           </div>
-          <div className="flex items-end gap-3 h-48 px-2">
+          <div className="flex items-end gap-1 sm:gap-3 h-36 sm:h-48 px-1 sm:px-2">
             {[45, 78, 56, 92, 65, 88, 70, 85, 95, 80].map((h, i) => (
               <div key={i} className="flex-1 group relative">
                 <div
@@ -374,12 +378,12 @@ export default function Dashboard() {
                   style={{ height: `${h}%` }}
                 />
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  {h}% Efficiency
+                  {h}%
                 </div>
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-4 text-[10px] font-black uppercase text-[rgb(var(--color-text-muted))]">
+          <div className="flex justify-between mt-3 text-[10px] font-black uppercase text-[rgb(var(--color-text-muted))]">
             <span>08:00</span>
             <span>12:00</span>
             <span>16:00</span>
@@ -387,7 +391,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="card p-6 border-l-4 border-l-emerald-500">
             <p className="text-[10px] font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1">
               Total Savings
@@ -454,7 +458,7 @@ export default function Dashboard() {
       </section>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6">
         {/* Call Logs */}
         <section className="xl:col-span-8 flex flex-col gap-4">
           <div className="card-elevated overflow-hidden">
@@ -581,7 +585,7 @@ export default function Dashboard() {
       />
 
       {/* Toast Notifications */}
-      <div className="fixed top-6 right-6 z-50 space-y-3">
+      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-50 space-y-3 w-[calc(100vw-2rem)] sm:w-auto max-w-sm">
         {toasts.map((toast) => (
           <Toast
             key={toast.id}

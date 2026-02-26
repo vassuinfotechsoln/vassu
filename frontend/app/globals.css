@@ -117,6 +117,56 @@ body {
   color: rgb(var(--color-text-primary));
   min-height: 100vh;
   line-height: 1.6;
+  /* Prevent horizontal overflow on mobile */
+  overflow-x: hidden;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Mobile-first global fixes ────────────────────────────────────────────── */
+
+/* Safe area insets for notched phones (iPhone X+) */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-left {
+  padding-left: env(safe-area-inset-left);
+}
+.safe-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Minimum touch target size for interactive elements */
+button,
+a,
+[role="button"] {
+  min-height: 36px;
+  touch-action: manipulation;
+}
+
+/* Prevent text size inflation on small screens */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent images from overflowing containers */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Ensure modals don't overflow on mobile */
+[data-modal] {
+  max-height: 100dvh;
+  max-width: 100dvw;
+  overflow-y: auto;
 }
 
 /* ============================================
@@ -141,7 +191,7 @@ h6,
 
 /* Glass Morphism */
 .glass {
-  background: rgb(var(--color-surface) / 0.7);
+  background: rgb(var(--color-surface));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgb(var(--color-border) / 0.5);
@@ -202,7 +252,9 @@ h6,
   align-items: center;
   background: var(--gradient-primary);
   color: white;
-  box-shadow: var(--shadow-md), 0 0 0 0 rgb(99 102 241 / 0);
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 0 rgb(99 102 241 / 0);
   border-radius: var(--radius-lg);
 }
 
@@ -670,4 +722,43 @@ h6,
   .hide-desktop {
     display: none !important;
   }
+}
+
+/* ============================================
+   Custom Scrollbar  (Webkit + Firefox)
+   ============================================ */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(99 102 241) rgb(15 15 25);
+}
+
+/* Chrome / Safari / Edge */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(10 10 15);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgb(99 102 241), rgb(139 92 246));
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgb(129 140 248), rgb(167 139 250));
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+  background: rgb(10 10 15);
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   Phone,
   Bot,
@@ -18,6 +19,8 @@ import {
   Mic,
   Zap,
   Rocket,
+  LogOut,
+  User,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 
@@ -65,6 +68,9 @@ const navigation = [
 export default function Sidebar({ onNavigate }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { data: session } = useSession();
+
+  const handleLogout = () => signOut({ callbackUrl: "/login" });
 
   return (
     <aside className="w-72 h-screen flex flex-col glass border-r border-[rgb(var(--color-border))]">
@@ -184,6 +190,40 @@ export default function Sidebar({ onNavigate }) {
             />
           </button>
         </div>
+
+        {/* User profile + Logout */}
+        {session?.user && (
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border)/0.5)]">
+            {session.user.image ? (
+              <img
+                src={session.user.image}
+                alt={session.user.name}
+                className="w-8 h-8 rounded-full object-cover border border-indigo-500/30"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                {(session.user.name ||
+                  session.user.email ||
+                  "U")[0].toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-[rgb(var(--color-text-primary))] truncate">
+                {session.user.name || "User"}
+              </p>
+              <p className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">
+                {session.user.email}
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[rgb(var(--color-text-muted))] hover:text-rose-400 transition-all flex-shrink-0"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Version */}
         <p className="text-center text-[10px] font-semibold text-[rgb(var(--color-text-muted))]">

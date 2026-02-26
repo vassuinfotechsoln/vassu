@@ -1,442 +1,286 @@
+/**
+ * calls.js — Telephony CPaaS powered call routes
+ *
+ * Webhook paths registered with provider portal:
+ *   Answer URL : GET  /api/calls/voice/answer/:callId
+ *   Event URL  : POST /api/calls/voice/status/:callId
+ *   Input URL  : POST /api/calls/voice/input/:callId
+ */
+
 const express = require("express");
 const { PrismaClient } = require("@prisma/client");
 const getConfig = require("../utils/config");
+const provider = require("../services/TelephonyService");
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Mock Twilio functionality for development
-const mockTwilio = {
-  calls: {
-    create: async (options) => ({
-      sid: "mock_call_" + Date.now(),
-      to: options.to,
-      from: options.from,
-      status: "initiated",
-    }),
-  },
-  twiml: {
-    VoiceResponse: class {
-      constructor() {
-        this.body = "";
-      }
-      say(options, text) {
-        this.body += `<Say>${text}</Say>`;
-        return this;
-      }
-      start() {
-        return { stream: () => this };
-      }
-      toString() {
-        return `<?xml version="1.0" encoding="UTF-8"?><Response>${this.body}</Response>`;
-      }
-    },
-  },
-};
-
-// Helper to get Twilio client dynamically
-const getTwilioClient = () => {
-  const config = getConfig();
-  if (
-    config.twilioAccountSid &&
-    config.twilioAuthToken &&
-    config.twilioAccountSid.startsWith("AC")
-  ) {
-    try {
-      const realTwilio = require("twilio");
-      console.log("Using real Twilio client");
-      return {
-        client: realTwilio(config.twilioAccountSid, config.twilioAuthToken),
-        twilio: realTwilio,
-      };
-    } catch (error) {
-      console.error("Failed to initialize real Twilio client:", error.message);
-    }
-  }
-  console.log("Using mock Twilio client");
-  return { client: mockTwilio, twilio: mockTwilio };
-};
-
-// Map our voice names to Twilio TTS voices
-function getTwilioVoice(voiceName) {
-  const map = {
-    alloy: "Polly.Joanna", // Neutral female
-    echo: "Polly.Matthew", // Male
-    fable: "Polly.Brian", // British Male
-    onyx: "Polly.Joey", // Deep Male
-    nova: "Polly.Salli", // Friendly Female
-    shimmer: "Polly.Kendra", // Soft Female
-  };
-  return map[voiceName] || "alice"; // fallback to alice
+// ── Phone number formatter ─────────────────────────────────────────────────
+function formatPhoneNumber(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (String(raw).startsWith("+")) return String(raw);
+  return digits.length >= 10 ? `+${digits}` : `+91${digits}`;
 }
 
-// Map our language codes to Twilio language codes
-function getTwilioLanguage(lang) {
-  const map = {
-    en: "en-US",
-    hi: "hi-IN",
-    gu: "gu-IN",
-    ta: "ta-IN",
-    te: "te-IN",
-    mr: "mr-IN",
-  };
-  return map[lang] || "en-US";
-}
-
-// Get all calls
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/calls — list all calls
+// ═══════════════════════════════════════════════════════════════════════════
 router.get("/", async (req, res) => {
   try {
     const calls = await prisma.call.findMany({
-      include: {
-        agent: {
-          select: { name: true },
-        },
-      },
+      include: { agent: { select: { name: true } } },
       orderBy: { startedAt: "desc" },
     });
     res.json(calls);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Get call by ID
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/calls/:id — single call with transcripts
+// ═══════════════════════════════════════════════════════════════════════════
 router.get("/:id", async (req, res) => {
   try {
     const call = await prisma.call.findUnique({
       where: { id: req.params.id },
-      include: {
-        agent: true,
-        transcripts: {
-          orderBy: { timestamp: "asc" },
-        },
-      },
+      include: { agent: true, transcripts: { orderBy: { timestamp: "asc" } } },
     });
-
-    if (!call) {
-      return res.status(404).json({ error: "Call not found" });
-    }
-
+    if (!call) return res.status(404).json({ error: "Call not found" });
     res.json(call);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Phone number formatting helper
-function formatPhoneNumber(phoneNumber) {
-  const digits = phoneNumber.replace(/\D/g, "");
-
-  if (digits.length === 10 && digits.match(/^[6-9]/)) {
-    return `+91${digits}`;
-  }
-
-  if (digits.length === 12 && digits.startsWith("91")) {
-    return `+${digits}`;
-  }
-
-  if (phoneNumber.startsWith("+")) {
-    return phoneNumber;
-  }
-
-  return digits.length >= 10 ? `+${digits}` : `+1${digits}`;
-}
-
-// Initiate outbound call
+// POST /api/calls/outbound — initiate a single outbound call
+// ═══════════════════════════════════════════════════════════════════════════
 router.post("/outbound", async (req, res) => {
   try {
     const { agentId, phoneNumber } = req.body;
 
-    if (!phoneNumber) {
+    if (!phoneNumber)
       return res.status(400).json({ error: "Phone number is required" });
-    }
-
-    if (!agentId) {
+    if (!agentId)
       return res.status(400).json({ error: "Agent ID is required" });
-    }
 
-    // Find the selected agent
-    const selectedAgent = await prisma.agent.findUnique({
-      where: { id: agentId },
-    });
-
-    if (!selectedAgent) {
-      return res.status(400).json({ error: "Invalid agent ID" });
-    }
+    const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+    if (!agent) return res.status(400).json({ error: "Invalid agent ID" });
 
     const config = getConfig();
-    const { client: twilioClient } = getTwilioClient();
     const baseUrl =
       config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
 
-    // Warn if BASE_URL is localhost (webhooks won't work with VI/Twilio in this case)
     if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
       console.warn(
-        "⚠️  BASE_URL is localhost — Twilio/VI webhooks won't work. Use VPS IP or ngrok URL.",
+        "⚠️  BASE_URL is localhost — Webhooks won't reach your server. Use a public IP or ngrok.",
       );
     }
 
-    const formattedNumber = formatPhoneNumber(phoneNumber);
+    const formatted = formatPhoneNumber(phoneNumber);
 
-    // Create database record
+    // 1. Create DB record
     const call = await prisma.call.create({
       data: {
         agentId,
-        phoneNumber: formattedNumber,
+        phoneNumber: formatted,
         direction: "OUTBOUND",
         status: "INITIATED",
       },
-      include: {
-        agent: true,
-      },
+      include: { agent: true },
     });
 
-    const webhookUrl = `${baseUrl}/api/calls/webhook/outbound/${call.id}`;
+    // 2. Dispatch via Provider
+    const outboundRes = await provider.makeOutboundCall({
+      to: formatted,
+      callId: call.id,
+      baseUrl,
+    });
 
-    const twilioCall = await twilioClient.calls.create({
-      to: formattedNumber,
-      from: config.twilioPhoneNumber || "+1234567890",
-      url: webhookUrl,
-      method: "POST",
-      statusCallback: `${baseUrl}/api/calls/webhook/status/${call.id}`,
-      statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
-      statusCallbackMethod: "POST",
+    // 3. Update DB
+    await prisma.call.update({
+      where: { id: call.id },
+      data: {
+        status: outboundRes.status === "simulated" ? "INITIATED" : "RINGING",
+      },
     });
 
     res.json({
       callId: call.id,
-      twilioSid: twilioCall.sid,
-      formattedNumber,
-      webhookUrl,
-      agent: selectedAgent,
+      providerUuid: outboundRes.uuid,
+      status: outboundRes.status,
+      simulated: outboundRes.status === "simulated",
+      toNumber: formatted,
+      answerUrl: `${baseUrl}/api/calls/voice/answer/${call.id}`,
+      agent,
     });
-  } catch (error) {
-    console.error("Outbound call error:", error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error("Outbound call error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Bulk outbound calls
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/calls/bulk — bulk outbound calls with interval
+// ═══════════════════════════════════════════════════════════════════════════
 router.post("/bulk", async (req, res) => {
   try {
-    const { agentId, recipients } = req.body; // recipients is array of { number, name, company }
+    const { agentId, recipients, intervalSeconds = 5 } = req.body;
 
     if (!recipients || !Array.isArray(recipients)) {
       return res.status(400).json({ error: "Recipients array is required" });
     }
 
-    const selectedAgent = await prisma.agent.findUnique({
-      where: { id: agentId },
-    });
-
-    if (!selectedAgent) {
-      return res.status(400).json({ error: "Invalid agent ID" });
-    }
+    const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+    if (!agent) return res.status(400).json({ error: "Invalid agent ID" });
 
     const config = getConfig();
-    const { client: twilioClient } = getTwilioClient();
     const baseUrl =
       config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
-
+    const delayMs = Math.min(
+      Math.max(Number(intervalSeconds) * 1000, 1000),
+      60000,
+    );
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const results = [];
 
-    // Rapid dispatch (in real world use a queue like BullMQ)
-    for (const person of recipients) {
+    for (let i = 0; i < recipients.length; i++) {
+      const person = recipients[i];
       try {
-        const formattedNumber = formatPhoneNumber(
-          person.number || person.Phone || person.phone,
+        const formatted = formatPhoneNumber(
+          person.number || person.Phone || person.phone || "",
         );
 
         const call = await prisma.call.create({
           data: {
             agentId,
-            phoneNumber: formattedNumber,
+            phoneNumber: formatted,
             direction: "OUTBOUND",
             status: "INITIATED",
           },
         });
 
-        const webhookUrl = `${baseUrl}/api/calls/webhook/outbound/${call.id}`;
-
-        const twilioCall = await twilioClient.calls.create({
-          to: formattedNumber,
-          from: config.twilioPhoneNumber || "+1234567890",
-          url: webhookUrl,
-          method: "POST",
-          statusCallback: `${baseUrl}/api/calls/webhook/status/${call.id}`,
-          statusCallbackEvent: [
-            "initiated",
-            "ringing",
-            "answered",
-            "completed",
-          ],
+        const outboundRes = await provider.makeOutboundCall({
+          to: formatted,
+          callId: call.id,
+          baseUrl,
         });
+
+        console.log(
+          `[Bulk] ${i + 1}/${recipients.length} → ${formatted} (${outboundRes.uuid})`,
+        );
 
         results.push({
           id: call.id,
-          sid: twilioCall.sid,
-          number: formattedNumber,
+          uuid: outboundRes.uuid,
+          number: formatted,
+          name: person.name || "",
         });
       } catch (err) {
-        console.error(`Failed to call ${person.number}:`, err.message);
+        console.error(`[Bulk] Failed ${person.number}:`, err.message);
+        results.push({ number: person.number || "", error: err.message });
       }
+
+      if (i < recipients.length - 1) await sleep(delayMs);
     }
 
     res.json({
-      message: `Successfully queued ${results.length} calls`,
+      message: `Dispatched ${results.filter((r) => !r.error).length} of ${recipients.length} calls`,
+      intervalSeconds: delayMs / 1000,
       results,
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Twilio/VI webhook for inbound calls
-router.post("/webhook/inbound", async (req, res) => {
-  console.log("Received Inbound Webhook:", {
-    from: req.body.From,
-    to: req.body.To,
-    sid: req.body.CallSid,
-    method: req.method,
-  });
-
-  try {
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    const config = getConfig();
-
-    // Find first agent as fallback (or handle specific assignment)
-    const agent = await prisma.agent.findFirst({
-      orderBy: { createdAt: "desc" }, // Get most recently created/updated
-    });
-
-    if (!agent) {
-      console.error("No agents found in database to handle inbound call");
-      twiml.say("System error: No agents available.");
-      return res.type("text/xml").send(twiml.toString());
-    }
-
-    const call = await prisma.call.create({
-      data: {
-        agentId: agent.id,
-        phoneNumber: req.body.From || "Unknown",
-        direction: "INBOUND",
-        status: "ANSWERED",
-      },
-    });
-
-    console.log(`Created call record: ${call.id} for agent: ${agent.name}`);
-
-    const gather = twiml.gather({
-      input: "speech",
-      timeout: 5,
-      speechTimeout: "auto",
-      action: `${config.baseUrl}/api/calls/webhook/response/${call.id}`,
-      method: "POST",
-    });
-
-    gather.say(
-      { voice: "alice" },
-      "Hello! I am your AI assistant. How can I help you today?",
-    );
-
-    twiml.say({ voice: "alice" }, "Thank you for calling. Goodbye!");
-    twiml.hangup();
-
-    res.type("text/xml").send(twiml.toString());
-  } catch (error) {
-    console.error("Inbound webhook error:", error);
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.say({}, "Sorry, there was an error processing your call.");
-    res.type("text/xml").send(twiml.toString());
-  }
-});
-
-// Twilio webhook for outbound calls
-router.post("/webhook/outbound/:callId", async (req, res) => {
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/calls/voice/answer/:callId — Provider calls this when call is answered
+// Returns Call Control JSON to control the call
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/voice/answer/:callId", async (req, res) => {
   try {
     const { callId } = req.params;
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    const config = getConfig();
 
     const call = await prisma.call.findUnique({
       where: { id: callId },
       include: { agent: true },
     });
 
-    let agentGreeting = `Hello! I am ${call?.agent?.name || "your AI assistant"}. How can I help you today?`;
+    await prisma.call.update({
+      where: { id: callId },
+      data: { status: "ANSWERED" },
+    });
+
+    // Generate greeting via Groq
+    let greetingText = `Hello! I am ${call?.agent?.name || "your AI assistant"}. How can I help you today?`;
 
     if (call?.agent?.prompt) {
-      // Use the first sentence of the prompt as greeting context, then ask
-      const langMap = {
-        hi: "Hindi",
-        gu: "Gujarati",
-        en: "English",
-        ta: "Tamil",
-        te: "Telugu",
-        mr: "Marathi",
-      };
-      const lang = langMap[call.agent.language] || "English";
-
       try {
         const Groq = require("groq-sdk");
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const langMap = {
+          en: "English",
+          hi: "Hindi",
+          gu: "Gujarati",
+          ta: "Tamil",
+          te: "Telugu",
+          mr: "Marathi",
+        };
+        const lang = langMap[call.agent.language] || "English";
         const completion = await groq.chat.completions.create({
           model: "llama-3.1-8b-instant",
           messages: [
             {
               role: "system",
-              content: `${call.agent.prompt}\n\nYou are starting a phone call. Generate a short, friendly opening greeting (max 20 words) in ${lang}. Just the greeting text, nothing else.`,
+              content: `${call.agent.prompt}\n\nGenerate a short friendly opening greeting (max 20 words) in ${lang}. Return only the greeting text.`,
             },
-            {
-              role: "user",
-              content: "Start the call with your opening greeting.",
-            },
+            { role: "user", content: "Start the call." },
           ],
           temperature: call.agent.temperature || 0.7,
           max_tokens: 50,
         });
-        agentGreeting = completion.choices[0].message.content.trim();
+        greetingText = completion.choices[0].message.content.trim();
       } catch (e) {
         console.warn("Groq greeting error, using default:", e.message);
       }
     }
 
-    const voice = getTwilioVoice(call?.agent?.voice || "alloy");
-    const gather = twiml.gather({
-      input: "speech",
-      timeout: 3,
-      speechTimeout: "auto",
-      language: getTwilioLanguage(call?.agent?.language || "en"),
-      action: `${config.baseUrl}/api/calls/webhook/response/${callId}`,
-      method: "POST",
+    const config = getConfig();
+    const baseUrl =
+      config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
+    const voiceName = provider.getVoiceName(call?.agent?.voice || "alloy");
+    const language = provider.getLanguage(call?.agent?.language || "en");
+    const inputUrl = `${baseUrl}/api/calls/voice/input/${callId}`;
+
+    const ncco = provider.buildVoiceResponse({
+      text: greetingText,
+      language,
+      voiceName,
+      inputUrl,
     });
 
-    gather.say({ voice }, agentGreeting);
-
-    twiml.say({ voice }, "I did not hear anything. Let me try again.");
-    twiml.redirect(`${config.baseUrl}/api/calls/webhook/outbound/${callId}`);
-
-    res.type("text/xml").send(twiml.toString());
-  } catch (error) {
-    console.error("Outbound webhook error:", error);
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.say({}, "Sorry, there was an error.");
-    res.type("text/xml").send(twiml.toString());
+    res.json(ncco);
+  } catch (err) {
+    console.error("Answer webhook error:", err);
+    res.json([{ action: "talk", text: "Sorry, there was an error. Goodbye!" }]);
   }
 });
 
-// Handle user response and continue conversation (Real AI powered)
-router.post("/webhook/response/:callId", async (req, res) => {
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/calls/voice/input/:callId — Provider sends speech input here
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/voice/input/:callId", async (req, res) => {
   try {
     const { callId } = req.params;
-    const userSpeech = req.body.SpeechResult || "";
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    const config = getConfig();
+    // Recognized speech in req.body.speech.results[0].text
+    const speechResult =
+      req.body?.speech?.results?.[0]?.text ||
+      req.body?.dtmf?.digits ||
+      req.body?.SpeechResult || // fallback
+      "";
 
     const call = await prisma.call.findUnique({
       where: { id: callId },
@@ -446,125 +290,173 @@ router.post("/webhook/response/:callId", async (req, res) => {
       },
     });
 
-    if (call && call.agent && userSpeech) {
-      // Save user transcript
-      await prisma.transcript.create({
-        data: { callId, speaker: "user", text: userSpeech },
-      });
-
-      // Build conversation history for AI context
-      const conversation = call.transcripts.map((t) => ({
-        role: t.speaker === "user" ? "user" : "assistant",
-        content: t.text,
-      }));
-
-      // Real Groq AI response
-      let aiResponse = "Main samajh gaya. Kuch aur puchh sakte hain?";
-      try {
-        const Groq = require("groq-sdk");
-        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-        const languageMap = {
-          hi: "Hindi",
-          gu: "Gujarati",
-          en: "English",
-          ta: "Tamil",
-          te: "Telugu",
-          mr: "Marathi",
-        };
-        const lang = languageMap[call.agent.language] || "English";
-
-        const completion = await groq.chat.completions.create({
-          model: "llama-3.1-8b-instant", // Active Groq model
-          messages: [
-            {
-              role: "system",
-              content: `${call.agent.prompt}. Keep responses under 25 words. You are on a phone call. Language: ${lang}. Be natural and conversational.`,
-            },
-            ...conversation,
-            { role: "user", content: userSpeech },
-          ],
-          temperature: call.agent.temperature || 0.7,
-          max_tokens: 80,
-        });
-
-        aiResponse = completion.choices[0].message.content.trim();
-        console.log(`AI Response for call ${callId}: ${aiResponse}`);
-      } catch (groqError) {
-        console.error("Groq error in webhook:", groqError.message);
-      }
-
-      // Save AI transcript
-      await prisma.transcript.create({
-        data: { callId, speaker: "assistant", text: aiResponse },
-      });
-
-      // Continue listening for next user input
-      const agentVoice = getTwilioVoice(call?.agent?.voice || "alloy");
-      const gather = twiml.gather({
-        input: "speech",
-        timeout: 5,
-        speechTimeout: "auto",
-        language: getTwilioLanguage(call?.agent?.language || "en"),
-        action: `${config.baseUrl}/api/calls/webhook/response/${callId}`,
-        method: "POST",
-      });
-
-      gather.say({ voice: agentVoice }, aiResponse);
-
-      twiml.say(
-        { voice: agentVoice },
-        "Thank you for your time. Have a great day!",
-      );
-      twiml.hangup();
-    } else {
-      // No speech detected or no agent
-      const gather = twiml.gather({
-        input: "speech",
-        timeout: 5,
-        speechTimeout: "auto",
-        action: `${config.baseUrl}/api/calls/webhook/response/${callId}`,
-        method: "POST",
-      });
-      gather.say(
-        { voice: "alice" },
-        "I didn't catch that. Could you please repeat?",
-      );
-      twiml.hangup();
+    if (!call || !speechResult) {
+      // No speech — re-prompt
+      res.json([
+        { action: "talk", text: "I didn't catch that. Could you repeat?" },
+      ]);
+      return;
     }
 
-    res.type("text/xml").send(twiml.toString());
-  } catch (error) {
-    console.error("Response webhook error:", error);
-    const { twilio } = getTwilioClient();
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.say({}, "Thank you for calling. Goodbye!");
-    twiml.hangup();
-    res.type("text/xml").send(twiml.toString());
+    // Save user speech
+    await prisma.transcript.create({
+      data: { callId, speaker: "user", text: speechResult },
+    });
+
+    // Build conversation history
+    const history = call.transcripts.map((t) => ({
+      role: t.speaker === "user" ? "user" : "assistant",
+      content: t.text,
+    }));
+
+    // Get AI response via Groq
+    let aiResponse = "I understand. How can I help you further?";
+    try {
+      const Groq = require("groq-sdk");
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const languageMap = {
+        en: "English",
+        hi: "Hindi",
+        gu: "Gujarati",
+        ta: "Tamil",
+        te: "Telugu",
+        mr: "Marathi",
+      };
+      const lang = languageMap[call.agent.language] || "English";
+
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: `${call.agent.prompt}. Keep responses under 25 words. Phone call. Language: ${lang}. Be natural.`,
+          },
+          ...history,
+          { role: "user", content: speechResult },
+        ],
+        temperature: call.agent.temperature || 0.7,
+        max_tokens: 80,
+      });
+      aiResponse = completion.choices[0].message.content.trim();
+    } catch (e) {
+      console.error("Groq error:", e.message);
+    }
+
+    // Save AI response
+    await prisma.transcript.create({
+      data: { callId, speaker: "assistant", text: aiResponse },
+    });
+
+    const config = getConfig();
+    const baseUrl =
+      config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
+    const voiceName = provider.getVoiceName(call.agent.voice || "alloy");
+    const language = provider.getLanguage(call.agent.language || "en");
+    const inputUrl = `${baseUrl}/api/calls/voice/input/${callId}`;
+
+    const ncco = provider.buildVoiceResponse({
+      text: aiResponse,
+      language,
+      voiceName,
+      inputUrl,
+    });
+    res.json(ncco);
+  } catch (err) {
+    console.error("Input webhook error:", err);
+    res.json([
+      { action: "talk", text: "Thank you for your time. Have a great day!" },
+    ]);
   }
 });
 
-// Handle call status updates
-router.post("/webhook/status/:callId", async (req, res) => {
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/calls/voice/status/:callId — Call status events
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/voice/status/:callId", async (req, res) => {
   try {
     const { callId } = req.params;
-    const callStatus = req.body.CallStatus;
+    // Status: "answered" | "ringing" | "completed" | "failed"
+    const callStatus = (req.body.status || "").toUpperCase();
+    const duration = parseInt(req.body.duration) || 0;
 
-    await prisma.call.update({
-      where: { id: callId },
+    if (callStatus) {
+      const validStatuses = [
+        "INITIATED",
+        "RINGING",
+        "ANSWERED",
+        "COMPLETED",
+        "FAILED",
+      ];
+      const finalStatus = validStatuses.includes(callStatus)
+        ? callStatus
+        : "COMPLETED";
+
+      await prisma.call.update({
+        where: { id: callId },
+        data: {
+          status: finalStatus,
+          ...(finalStatus === "COMPLETED" && { endedAt: new Date(), duration }),
+        },
+      });
+
+      console.log(`[Status] callId=${callId} → ${finalStatus} (${duration}s)`);
+    }
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Status webhook error:", err);
+    res.status(200).json({ ok: true }); // always 200 so provider doesn't retry infinitely
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/calls/voice/inbound — incoming calls
+// Register this URL in the portal as your inbound webhook
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/voice/inbound", async (req, res) => {
+  try {
+    const from = req.body.from || "Unknown";
+
+    const agent = await prisma.agent.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!agent) {
+      console.error("No agents found for inbound call");
+      return res.json([
+        { action: "talk", text: "No agents available. Goodbye!" },
+      ]);
+    }
+
+    const call = await prisma.call.create({
       data: {
-        status: callStatus.toUpperCase(),
-        ...(callStatus === "completed" && {
-          endedAt: new Date(),
-          duration: parseInt(req.body.CallDuration) || 0,
-        }),
+        agentId: agent.id,
+        phoneNumber: from,
+        direction: "INBOUND",
+        status: "ANSWERED",
       },
     });
 
-    res.status(200).send("OK");
-  } catch (error) {
-    console.error("Status webhook error:", error);
-    res.status(200).send("OK");
+    const config = getConfig();
+    const baseUrl =
+      config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
+    const voiceName = provider.getVoiceName(agent.voice || "alloy");
+    const language = provider.getLanguage(agent.language || "en");
+    const inputUrl = `${baseUrl}/api/calls/voice/input/${call.id}`;
+
+    const greeting = `Hello! I am ${agent.name}. How can I help you today?`;
+
+    res.json(
+      provider.buildVoiceResponse({
+        text: greeting,
+        language,
+        voiceName,
+        inputUrl,
+      }),
+    );
+  } catch (err) {
+    console.error("Inbound webhook error:", err);
+    res.json([{ action: "talk", text: "Sorry, an error occurred. Goodbye!" }]);
   }
 });
 

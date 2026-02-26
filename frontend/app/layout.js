@@ -1,6 +1,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
+import AuthProvider from "@/components/AuthProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,6 +21,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1"
+        />
+        <meta name="theme-color" content="#0a0a0f" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -28,7 +34,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,6 +1,11 @@
 node_modules/
 .next/
 .env
+.env.local
+.env.*.local
+backend/data/
+*.db
+*.sqlite
 *.log
 npm-debug.log*
 .DS_Store

@@ -4,37 +4,34 @@ const path = require("path");
 const SETTINGS_FILE = path.join(__dirname, "../../data/settings.json");
 
 function getConfig() {
+  let fileSettings = {};
+
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      const data = fs.readFileSync(SETTINGS_FILE, "utf8");
-      const settings = JSON.parse(data);
-      return {
-        twilioAccountSid:
-          settings.twilioAccountSid || process.env.TWILIO_ACCOUNT_SID,
-        twilioAuthToken:
-          settings.twilioAuthToken || process.env.TWILIO_AUTH_TOKEN,
-        twilioPhoneNumber:
-          settings.twilioPhoneNumber || process.env.TWILIO_PHONE_NUMBER,
-        groqApiKey: settings.groqApiKey || process.env.GROQ_API_KEY,
-        elevenlabsApiKey:
-          settings.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY,
-        assemblyaiApiKey:
-          settings.assemblyaiApiKey || process.env.ASSEMBLYAI_API_KEY,
-        baseUrl: settings.baseUrl || process.env.BASE_URL, // Assuming baseUrl might be added later or fallback
-      };
+      fileSettings = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
     }
   } catch (error) {
     console.error("Error reading settings file:", error);
   }
 
   return {
-    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
-    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
-    twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER,
-    groqApiKey: process.env.GROQ_API_KEY,
-    elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
-    assemblyaiApiKey: process.env.ASSEMBLYAI_API_KEY,
-    baseUrl: process.env.BASE_URL,
+    // ── Telephony Integration ───────────────────────────────────────────────────────────
+    viApiKey: fileSettings.viApiKey || process.env.VI_API_KEY,
+    viApiSecret: fileSettings.viApiSecret || process.env.VI_API_SECRET,
+    viVirtualNumber:
+      fileSettings.viVirtualNumber || process.env.VI_VIRTUAL_NUMBER,
+
+    // ── AI Services ────────────────────────────────────────────────────────
+    groqApiKey: fileSettings.groqApiKey || process.env.GROQ_API_KEY,
+    elevenlabsApiKey:
+      fileSettings.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY,
+    assemblyaiApiKey:
+      fileSettings.assemblyaiApiKey || process.env.ASSEMBLYAI_API_KEY,
+
+    // ── Server ─────────────────────────────────────────────────────────────
+    // Must be a public HTTPS URL so the provider can reach your webhooks.
+    // Example: https://your-vps-ip:3001  or  https://abc.ngrok.io
+    baseUrl: fileSettings.baseUrl || process.env.BASE_URL,
   };
 }
 

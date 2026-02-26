@@ -226,10 +226,24 @@ export default function CampaignsPage() {
                 >
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          camp.status === "COMPLETED"
+                            ? "bg-emerald-500/10"
+                            : camp.status === "RUNNING"
+                              ? "bg-indigo-500/10"
+                              : "bg-amber-500/10"
+                        }`}
+                      >
                         <PhoneCall
                           size={18}
-                          className="text-[rgb(var(--color-text-secondary))]"
+                          className={
+                            camp.status === "COMPLETED"
+                              ? "text-emerald-500"
+                              : camp.status === "RUNNING"
+                                ? "text-indigo-500"
+                                : "text-amber-500"
+                          }
                         />
                       </div>
                       <p className="font-bold text-[rgb(var(--color-text-primary))]">
