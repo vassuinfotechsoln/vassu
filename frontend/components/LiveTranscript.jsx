@@ -9,44 +9,66 @@ export default function LiveTranscript({ callId }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    // Simulate live transcript updates
-    const mockMessages = [
-      {
-        id: 1,
-        speaker: "user",
-        text: "Hello, I'm interested in your services.",
-        timestamp: new Date(),
-      },
-      {
-        id: 2,
-        speaker: "assistant",
-        text: "Hello! Thank you for reaching out. I'd be happy to help you learn more about our AI voice solutions. What specific features are you looking for?",
-        timestamp: new Date(),
-      },
-      {
-        id: 3,
-        speaker: "user",
-        text: "I need something for customer support automation.",
-        timestamp: new Date(),
-      },
-    ];
+    let interval;
 
-    setMessages(mockMessages);
+    const fetchTranscripts = async () => {
+      if (!callId || callId === "demo-call") {
+        // Fallback for demo mode
+        const demoMessages = [
+          {
+            id: 1,
+            speaker: "user",
+            text: "Hello, I'm testing the industry deployment.",
+            timestamp: new Date(),
+          },
+          {
+            id: 2,
+            speaker: "assistant",
+            text: "Verified. Neural connections are stable and optimized for low latency.",
+            timestamp: new Date(),
+          },
+        ];
+        setMessages(demoMessages);
+        return;
+      }
 
-    // Simulate real-time message
-    const timer = setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 4,
-          speaker: "assistant",
-          text: "Great choice! Our platform can handle customer inquiries 24/7 with natural-sounding AI voices. Would you like me to explain our pricing plans?",
-          timestamp: new Date(),
-        },
-      ]);
-    }, 2000);
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:3001/api/calls/${callId}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.transcripts) {
+            setMessages(
+              data.transcripts.map((t) => ({
+                id: t.id,
+                speaker: t.speaker,
+                text: t.text,
+                timestamp: new Date(t.timestamp),
+              })),
+            );
 
-    return () => clearTimeout(timer);
+            // If call is completed, stop polling
+            if (data.status === "COMPLETED" || data.status === "FAILED") {
+              setIsListening(false);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch transcripts:", error);
+      }
+    };
+
+    fetchTranscripts();
+
+    // Poll every 2 seconds for live feeling
+    if (callId !== "demo-call") {
+      interval = setInterval(fetchTranscripts, 2000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [callId]);
 
   useEffect(() => {

@@ -59,6 +59,8 @@ router.post("/", async (req, res) => {
         voice: voice || "alloy",
         language: language || "en",
         temperature: parseFloat(temperature) || 0.7,
+        knowledgeUrl: req.body.knowledgeUrl || null,
+        knowledgeText: req.body.knowledgeText || null,
       },
     });
 
@@ -82,6 +84,8 @@ router.put("/:id", async (req, res) => {
         voice,
         language,
         temperature: parseFloat(temperature),
+        knowledgeUrl: req.body.knowledgeUrl,
+        knowledgeText: req.body.knowledgeText,
       },
     });
 

@@ -60,19 +60,26 @@ const getTwilioClient = () => {
 // Map our voice names to Twilio TTS voices
 function getTwilioVoice(voiceName) {
   const map = {
-    alloy: "Polly.Joanna",   // Neutral female
-    echo: "Polly.Matthew",  // Male
-    fable: "Polly.Brian",    // British Male
-    onyx: "Polly.Joey",     // Deep Male
-    nova: "Polly.Salli",    // Friendly Female
-    shimmer: "Polly.Kendra",   // Soft Female
+    alloy: "Polly.Joanna", // Neutral female
+    echo: "Polly.Matthew", // Male
+    fable: "Polly.Brian", // British Male
+    onyx: "Polly.Joey", // Deep Male
+    nova: "Polly.Salli", // Friendly Female
+    shimmer: "Polly.Kendra", // Soft Female
   };
   return map[voiceName] || "alice"; // fallback to alice
 }
 
 // Map our language codes to Twilio language codes
 function getTwilioLanguage(lang) {
-  const map = { en: "en-US", hi: "hi-IN", gu: "gu-IN", ta: "ta-IN", te: "te-IN", mr: "mr-IN" };
+  const map = {
+    en: "en-US",
+    hi: "hi-IN",
+    gu: "gu-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    mr: "mr-IN",
+  };
   return map[lang] || "en-US";
 }
 
@@ -159,11 +166,14 @@ router.post("/outbound", async (req, res) => {
 
     const config = getConfig();
     const { client: twilioClient } = getTwilioClient();
-    const baseUrl = config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
+    const baseUrl =
+      config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
 
     // Warn if BASE_URL is localhost (webhooks won't work with VI/Twilio in this case)
     if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
-      console.warn("⚠️  BASE_URL is localhost — Twilio/VI webhooks won't work. Use VPS IP or ngrok URL.");
+      console.warn(
+        "⚠️  BASE_URL is localhost — Twilio/VI webhooks won't work. Use VPS IP or ngrok URL.",
+      );
     }
 
     const formattedNumber = formatPhoneNumber(phoneNumber);
@@ -206,13 +216,88 @@ router.post("/outbound", async (req, res) => {
   }
 });
 
+// Bulk outbound calls
+router.post("/bulk", async (req, res) => {
+  try {
+    const { agentId, recipients } = req.body; // recipients is array of { number, name, company }
+
+    if (!recipients || !Array.isArray(recipients)) {
+      return res.status(400).json({ error: "Recipients array is required" });
+    }
+
+    const selectedAgent = await prisma.agent.findUnique({
+      where: { id: agentId },
+    });
+
+    if (!selectedAgent) {
+      return res.status(400).json({ error: "Invalid agent ID" });
+    }
+
+    const config = getConfig();
+    const { client: twilioClient } = getTwilioClient();
+    const baseUrl =
+      config.baseUrl || `http://127.0.0.1:${process.env.PORT || 3001}`;
+
+    const results = [];
+
+    // Rapid dispatch (in real world use a queue like BullMQ)
+    for (const person of recipients) {
+      try {
+        const formattedNumber = formatPhoneNumber(
+          person.number || person.Phone || person.phone,
+        );
+
+        const call = await prisma.call.create({
+          data: {
+            agentId,
+            phoneNumber: formattedNumber,
+            direction: "OUTBOUND",
+            status: "INITIATED",
+          },
+        });
+
+        const webhookUrl = `${baseUrl}/api/calls/webhook/outbound/${call.id}`;
+
+        const twilioCall = await twilioClient.calls.create({
+          to: formattedNumber,
+          from: config.twilioPhoneNumber || "+1234567890",
+          url: webhookUrl,
+          method: "POST",
+          statusCallback: `${baseUrl}/api/calls/webhook/status/${call.id}`,
+          statusCallbackEvent: [
+            "initiated",
+            "ringing",
+            "answered",
+            "completed",
+          ],
+        });
+
+        results.push({
+          id: call.id,
+          sid: twilioCall.sid,
+          number: formattedNumber,
+        });
+      } catch (err) {
+        console.error(`Failed to call ${person.number}:`, err.message);
+      }
+    }
+
+    res.json({
+      message: `Successfully queued ${results.length} calls`,
+      results,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Twilio/VI webhook for inbound calls
 router.post("/webhook/inbound", async (req, res) => {
   console.log("Received Inbound Webhook:", {
     from: req.body.From,
     to: req.body.To,
     sid: req.body.CallSid,
-    method: req.method
+    method: req.method,
   });
 
   try {
@@ -222,7 +307,7 @@ router.post("/webhook/inbound", async (req, res) => {
 
     // Find first agent as fallback (or handle specific assignment)
     const agent = await prisma.agent.findFirst({
-      orderBy: { createdAt: 'desc' } // Get most recently created/updated
+      orderBy: { createdAt: "desc" }, // Get most recently created/updated
     });
 
     if (!agent) {
@@ -252,7 +337,7 @@ router.post("/webhook/inbound", async (req, res) => {
 
     gather.say(
       { voice: "alice" },
-      "Hello! I am your AI assistant. How can I help you today?"
+      "Hello! I am your AI assistant. How can I help you today?",
     );
 
     twiml.say({ voice: "alice" }, "Thank you for calling. Goodbye!");
@@ -285,7 +370,14 @@ router.post("/webhook/outbound/:callId", async (req, res) => {
 
     if (call?.agent?.prompt) {
       // Use the first sentence of the prompt as greeting context, then ask
-      const langMap = { hi: "Hindi", gu: "Gujarati", en: "English", ta: "Tamil", te: "Telugu", mr: "Marathi" };
+      const langMap = {
+        hi: "Hindi",
+        gu: "Gujarati",
+        en: "English",
+        ta: "Tamil",
+        te: "Telugu",
+        mr: "Marathi",
+      };
       const lang = langMap[call.agent.language] || "English";
 
       try {
@@ -294,8 +386,14 @@ router.post("/webhook/outbound/:callId", async (req, res) => {
         const completion = await groq.chat.completions.create({
           model: "llama-3.1-8b-instant",
           messages: [
-            { role: "system", content: `${call.agent.prompt}\n\nYou are starting a phone call. Generate a short, friendly opening greeting (max 20 words) in ${lang}. Just the greeting text, nothing else.` },
-            { role: "user", content: "Start the call with your opening greeting." },
+            {
+              role: "system",
+              content: `${call.agent.prompt}\n\nYou are starting a phone call. Generate a short, friendly opening greeting (max 20 words) in ${lang}. Just the greeting text, nothing else.`,
+            },
+            {
+              role: "user",
+              content: "Start the call with your opening greeting.",
+            },
           ],
           temperature: call.agent.temperature || 0.7,
           max_tokens: 50,
@@ -366,7 +464,14 @@ router.post("/webhook/response/:callId", async (req, res) => {
         const Groq = require("groq-sdk");
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-        const languageMap = { hi: "Hindi", gu: "Gujarati", en: "English", ta: "Tamil", te: "Telugu", mr: "Marathi" };
+        const languageMap = {
+          hi: "Hindi",
+          gu: "Gujarati",
+          en: "English",
+          ta: "Tamil",
+          te: "Telugu",
+          mr: "Marathi",
+        };
         const lang = languageMap[call.agent.language] || "English";
 
         const completion = await groq.chat.completions.create({
@@ -407,7 +512,10 @@ router.post("/webhook/response/:callId", async (req, res) => {
 
       gather.say({ voice: agentVoice }, aiResponse);
 
-      twiml.say({ voice: agentVoice }, "Thank you for your time. Have a great day!");
+      twiml.say(
+        { voice: agentVoice },
+        "Thank you for your time. Have a great day!",
+      );
       twiml.hangup();
     } else {
       // No speech detected or no agent
@@ -418,7 +526,10 @@ router.post("/webhook/response/:callId", async (req, res) => {
         action: `${config.baseUrl}/api/calls/webhook/response/${callId}`,
         method: "POST",
       });
-      gather.say({ voice: "alice" }, "I didn't catch that. Could you please repeat?");
+      gather.say(
+        { voice: "alice" },
+        "I didn't catch that. Could you please repeat?",
+      );
       twiml.hangup();
     }
 

@@ -17,6 +17,7 @@ import {
   Headphones,
   Mic,
   Zap,
+  Rocket,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 
@@ -39,6 +40,13 @@ const navigation = [
     href: "/dashboard/agents",
     icon: Bot,
     description: "Manage voice agents",
+  },
+  {
+    name: "Campaigns",
+    href: "/dashboard/campaigns",
+    icon: Rocket,
+    badge: "Bulk",
+    description: "Mass outreach systems",
   },
   {
     name: "Transcripts",

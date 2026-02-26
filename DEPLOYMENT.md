@@ -3,12 +3,14 @@
 ## Local Development
 
 ### Prerequisites
+
 - Node.js 18+
-- PostgreSQL 15+
+- MongoDB 6.0+
 - Twilio Account
 - OpenAI API Key
 
 ### Setup
+
 ```bash
 # Clone repository
 git clone <repo-url>
@@ -19,7 +21,7 @@ cd backend
 npm install
 cp .env.example .env
 # Configure environment variables
-npx prisma migrate dev
+npx prisma db push
 npm run dev
 
 # Frontend setup (new terminal)
@@ -31,6 +33,7 @@ npm run dev
 ## Docker Deployment
 
 ### Using Docker Compose
+
 ```bash
 # Create .env file with your credentials
 cp .env.example .env
@@ -38,17 +41,18 @@ cp .env.example .env
 # Start all services
 docker-compose up -d
 
-# Run database migrations
-docker-compose exec backend npx prisma migrate deploy
+# Sync database schema
+docker-compose exec backend npx prisma db push
 ```
 
 ## Cloud Deployment
 
 ### Railway
+
 1. Connect your GitHub repository to Railway
-2. Create PostgreSQL database addon
+2. Create MongoDB database addon
 3. Set environment variables:
-   - `DATABASE_URL` (from Railway PostgreSQL)
+   - `DATABASE_URL` (from Railway MongoDB)
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_PHONE_NUMBER`
@@ -56,6 +60,7 @@ docker-compose exec backend npx prisma migrate deploy
 4. Deploy backend and frontend as separate services
 
 ### Vercel (Frontend only)
+
 ```bash
 # Install Vercel CLI
 npm i -g vercel
@@ -70,6 +75,7 @@ vercel --prod
 ```
 
 ### Render
+
 1. Create new Web Service
 2. Connect GitHub repository
 3. Set build command: `npm install && npm run build`
@@ -79,8 +85,9 @@ vercel --prod
 ## Environment Variables
 
 ### Backend (.env)
+
 ```
-DATABASE_URL=postgresql://user:pass@host:5432/db
+DATABASE_URL=mongodb://localhost:27017/vassutalks
 TWILIO_ACCOUNT_SID=your_twilio_sid
 TWILIO_AUTH_TOKEN=your_twilio_token
 TWILIO_PHONE_NUMBER=+1234567890
@@ -91,6 +98,7 @@ BASE_URL=https://your-domain.com
 ```
 
 ### Frontend (.env.local)
+
 ```
 NEXT_PUBLIC_API_URL=https://your-backend-url.com
 NEXT_PUBLIC_WS_URL=wss://your-backend-url.com
@@ -98,7 +106,7 @@ NEXT_PUBLIC_WS_URL=wss://your-backend-url.com
 
 ## Production Checklist
 
-- [ ] Database migrations applied
+- [ ] Database schema synced
 - [ ] Environment variables configured
 - [ ] Twilio webhook URLs updated
 - [ ] SSL certificates configured
@@ -110,20 +118,24 @@ NEXT_PUBLIC_WS_URL=wss://your-backend-url.com
 ## Scaling Considerations
 
 ### Database
+
 - Use connection pooling
 - Implement read replicas for heavy read workloads
 - Consider database sharding for large scale
 
 ### Backend
+
 - Use Redis for session management
 - Implement horizontal scaling with load balancer
 - Use message queues for async processing
 
 ### WebSocket
+
 - Use sticky sessions or Redis adapter
 - Consider WebSocket clustering
 
 ### Monitoring
+
 - Application Performance Monitoring (APM)
 - Error tracking (Sentry)
 - Uptime monitoring

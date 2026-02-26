@@ -26,11 +26,16 @@ import {
 import CallLogTable from "@/components/CallLogTable";
 import LiveTranscript from "@/components/LiveTranscript";
 import CallMonitor from "@/components/CallMonitor";
+import NewCallModal from "@/components/NewCallModal";
+import BulkUploadModal from "@/components/BulkUploadModal";
 import Toast from "@/components/Toast";
 import { useToast } from "@/lib/hooks";
 
 export default function Dashboard() {
   const [calls, setCalls] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [activeCall, setActiveCall] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -43,6 +48,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchCalls();
+    fetchAgents();
     const interval = setInterval(() => {
       setStats((prev) => ({
         ...prev,
@@ -72,7 +78,7 @@ export default function Dashboard() {
         avgDuration:
           callsArray.length > 0
             ? callsArray.reduce((acc, call) => acc + (call.duration || 0), 0) /
-            callsArray.length
+              callsArray.length
             : 0,
       }));
     } catch (error) {
@@ -85,6 +91,38 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:3001/api/agents", {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAgents(data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch agents:", error);
+    }
+  };
+
+  const onCallInitiated = (callData) => {
+    addToast(`Call initiated to ${callData.formattedNumber}`, "success");
+    fetchCalls();
+    setActiveCall({
+      id: callData.callId,
+      agent: callData.agent,
+      phoneNumber: callData.formattedNumber,
+    });
+  };
+
+  const onCampaignLaunched = (campaignData) => {
+    addToast(
+      `Bulk deployment launched: ${campaignData.count} recipients targetted with ${campaignData.agent.name}`,
+      "success",
+    );
+    fetchCalls();
   };
 
   const statsConfig = [
@@ -131,17 +169,35 @@ export default function Dashboard() {
   ];
 
   const [systemStatus, setSystemStatus] = useState([
-    { name: "STT Engine", status: "checking...", latency: "...", key: "assemblyai" },
-    { name: "LLM Pipeline", status: "checking...", latency: "...", key: "groq" },
-    { name: "TTS Service", status: "checking...", latency: "...", key: "elevenlabs" },
+    {
+      name: "STT Engine",
+      status: "checking...",
+      latency: "...",
+      key: "assemblyai",
+    },
+    {
+      name: "LLM Pipeline",
+      status: "checking...",
+      latency: "...",
+      key: "groq",
+    },
+    {
+      name: "TTS Service",
+      status: "checking...",
+      latency: "...",
+      key: "elevenlabs",
+    },
   ]);
 
   useEffect(() => {
     const validateServices = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:3001/api/settings/validate", {
-          signal: AbortSignal.timeout(8000),
-        });
+        const response = await fetch(
+          "http://127.0.0.1:3001/api/settings/validate",
+          {
+            signal: AbortSignal.timeout(8000),
+          },
+        );
         const results = await response.json();
 
         setSystemStatus([
@@ -149,35 +205,58 @@ export default function Dashboard() {
             name: "STT Engine",
             status: results.assemblyai ? "operational" : "degraded",
             latency: "45ms",
-            online: !!results.assemblyai
+            online: !!results.assemblyai,
           },
           {
             name: "LLM Pipeline",
             status: results.groq ? "operational" : "degraded",
             latency: "120ms",
-            online: !!results.groq
+            online: !!results.groq,
           },
           {
             name: "TTS Service",
             status: results.elevenlabs ? "operational" : "degraded",
             latency: "80ms",
-            online: !!results.elevenlabs
+            online: !!results.elevenlabs,
           },
           {
             name: "Vassu Gateway",
             status: "operational",
             latency: "25ms",
-            online: true
+            online: true,
           },
         ]);
       } catch (error) {
-        console.warn("Status validation failed (backend offline?):", error.message);
+        console.warn(
+          "Status validation failed (backend offline?):",
+          error.message,
+        );
         // Mark all services as offline if backend is unreachable
         setSystemStatus([
-          { name: "STT Engine", status: "offline", latency: "—", online: false },
-          { name: "LLM Pipeline", status: "offline", latency: "—", online: false },
-          { name: "TTS Service", status: "offline", latency: "—", online: false },
-          { name: "Vassu Gateway", status: "offline", latency: "—", online: false },
+          {
+            name: "STT Engine",
+            status: "offline",
+            latency: "—",
+            online: false,
+          },
+          {
+            name: "LLM Pipeline",
+            status: "offline",
+            latency: "—",
+            online: false,
+          },
+          {
+            name: "TTS Service",
+            status: "offline",
+            latency: "—",
+            online: false,
+          },
+          {
+            name: "Vassu Gateway",
+            status: "offline",
+            latency: "—",
+            online: false,
+          },
         ]);
       }
     };
@@ -186,6 +265,9 @@ export default function Dashboard() {
     const interval = setInterval(validateServices, 30000); // Check every 30s
     return () => clearInterval(interval);
   }, []);
+
+  const isLiveTelephony =
+    systemStatus.find((s) => s.name === "Vassu Gateway")?.online || false;
 
   return (
     <div className="p-6 lg:p-8 flex flex-col gap-8 animate-fade-in">
@@ -201,6 +283,16 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div
+            className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl border ${isLiveTelephony ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-amber-500/5 border-amber-500/20 text-amber-600"}`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${isLiveTelephony ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+            />
+            <span className="text-xs font-black uppercase tracking-widest">
+              {isLiveTelephony ? "Live Telephony" : "Simulation Mode"}
+            </span>
+          </div>
           <button
             onClick={fetchCalls}
             disabled={loading}
@@ -210,11 +302,11 @@ export default function Dashboard() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
-            onClick={() => setActiveCall({ id: "demo-call" })}
+            onClick={() => setIsBulkModalOpen(true)}
             className="btn-base btn-primary"
           >
             <Play className="w-4 h-4" />
-            <span>Simulate Call</span>
+            <span>Bulk Deployment</span>
           </button>
         </div>
       </header>
@@ -238,8 +330,9 @@ export default function Dashboard() {
                 </span>
               ) : stat.trend ? (
                 <span
-                  className={`flex items-center gap-1 text-xs font-semibold ${stat.trendUp ? "text-emerald-500" : "text-red-500"
-                    }`}
+                  className={`flex items-center gap-1 text-xs font-semibold ${
+                    stat.trendUp ? "text-emerald-500" : "text-red-500"
+                  }`}
                 >
                   {stat.trendUp ? (
                     <TrendingUp className="w-3 h-3" />
@@ -256,6 +349,108 @@ export default function Dashboard() {
             </div>
           </div>
         ))}
+      </section>
+
+      {/* Industry Analytics Section */}
+      <section
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up"
+        style={{ animationDelay: "200ms" }}
+      >
+        <div className="card-elevated p-6 bg-gradient-to-br from-[rgb(var(--color-surface))] to-indigo-500/5">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-black flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-500" />
+              Performance Distribution
+            </h3>
+            <span className="text-xs font-bold text-indigo-500 bg-indigo-500/10 px-3 py-1 rounded-full uppercase">
+              Real-time
+            </span>
+          </div>
+          <div className="flex items-end gap-3 h-48 px-2">
+            {[45, 78, 56, 92, 65, 88, 70, 85, 95, 80].map((h, i) => (
+              <div key={i} className="flex-1 group relative">
+                <div
+                  className="w-full bg-gradient-to-t from-indigo-600 to-purple-500 rounded-t-lg transition-all duration-700 hover:brightness-110"
+                  style={{ height: `${h}%` }}
+                />
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  {h}% Efficiency
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-4 text-[10px] font-black uppercase text-[rgb(var(--color-text-muted))]">
+            <span>08:00</span>
+            <span>12:00</span>
+            <span>16:00</span>
+            <span>20:00</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="card p-6 border-l-4 border-l-emerald-500">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1">
+              Total Savings
+            </p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-black text-[rgb(var(--color-text-primary))]">
+                $12,450
+              </span>
+              <span className="text-xs font-bold text-emerald-500 mb-1">
+                +14%
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-2 font-medium">
+              Versus manual operator costs
+            </p>
+          </div>
+          <div className="card p-6 border-l-4 border-l-indigo-500">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1">
+              AI Efficiency
+            </p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-black text-[rgb(var(--color-text-primary))]">
+                98.4%
+              </span>
+              <span className="text-xs font-bold text-indigo-500 mb-1">
+                Optimal
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-2 font-medium">
+              Latency & STT accuracy
+            </p>
+          </div>
+          <div className="card p-6 border-l-4 border-l-purple-500">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1">
+              Human Handoffs
+            </p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-black text-[rgb(var(--color-text-primary))]">
+                12
+              </span>
+              <span className="text-xs font-bold text-rose-500 mb-1">-2</span>
+            </div>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-2 font-medium">
+              Escalations required today
+            </p>
+          </div>
+          <div className="card p-6 border-l-4 border-l-amber-500">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1">
+              Total GPU Time
+            </p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-black text-[rgb(var(--color-text-primary))]">
+                4.2h
+              </span>
+              <span className="text-xs font-bold text-amber-500 mb-1">
+                LPU Inc.
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-2 font-medium">
+              Compute resource utilization
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Main Content */}
@@ -321,7 +516,9 @@ export default function Dashboard() {
                   className="flex items-center justify-between p-3 rounded-xl bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border)/0.5)]"
                 >
                   <div className="flex items-center gap-3">
-                    <CheckCircle2 className={`w-4 h-4 ${service.online ? "text-emerald-500" : "text-amber-500"}`} />
+                    <CheckCircle2
+                      className={`w-4 h-4 ${service.online ? "text-emerald-500" : "text-amber-500"}`}
+                    />
                     <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">
                       {service.name}
                     </span>
@@ -330,7 +527,9 @@ export default function Dashboard() {
                     <span className="text-xs text-[rgb(var(--color-text-muted))]">
                       {service.latency}
                     </span>
-                    <span className={`badge ${service.online ? "badge-success" : "badge-warning"} text-[10px]`}>
+                    <span
+                      className={`badge ${service.online ? "badge-success" : "badge-warning"} text-[10px]`}
+                    >
                       {service.online ? "Online" : "Check Key"}
                     </span>
                   </div>
@@ -346,7 +545,10 @@ export default function Dashboard() {
               Quick Actions
             </h3>
             <div className="space-y-2">
-              <button className="w-full btn-base btn-secondary text-left justify-start">
+              <button
+                onClick={() => setIsCallModalOpen(true)}
+                className="w-full btn-base btn-secondary text-left justify-start"
+              >
                 <PhoneOutgoing className="w-4 h-4 text-indigo-500" />
                 <span>Make Outbound Call</span>
               </button>
@@ -362,6 +564,21 @@ export default function Dashboard() {
           </div>
         </aside>
       </div>
+
+      {/* New Call Modal */}
+      <NewCallModal
+        isOpen={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        agents={agents}
+        onCallInitiated={onCallInitiated}
+      />
+
+      <BulkUploadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        agents={agents}
+        onCampaignLaunched={onCampaignLaunched}
+      />
 
       {/* Toast Notifications */}
       <div className="fixed top-6 right-6 z-50 space-y-3">

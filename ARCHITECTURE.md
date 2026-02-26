@@ -40,7 +40,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Data Layer                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │ PostgreSQL  │  │    Redis    │  │   File      │            │
+│  │   MongoDB   │  │    Redis    │  │   File      │            │
 │  │ (Primary)   │  │  (Cache)    │  │  Storage    │            │
 │  └─────────────┘  └─────────────┘  └─────────────┘            │
 └─────────────────────────────────────────────────────────────────┘
@@ -98,7 +98,7 @@ backend/
    - Text → OpenAI LLM
    - Response → OpenAI TTS
    - Audio → Twilio stream
-4. **Logging**: Save transcripts → PostgreSQL
+4. **Logging**: Save transcripts → MongoDB
 5. **Dashboard Update**: WebSocket → frontend updates
 
 ### Outbound Call Flow
@@ -203,7 +203,7 @@ calls (1) → (many) transcripts
 ```
 Internet → Load Balancer → App Servers → Database
     ↓           ↓              ↓           ↓
-  HTTPS      SSL Term      Docker      PostgreSQL
+  HTTPS      SSL Term      Docker      MongoDB
              Rate Limit    Containers   + Redis
 ```
 

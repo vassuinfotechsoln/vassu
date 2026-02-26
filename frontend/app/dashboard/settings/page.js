@@ -12,6 +12,9 @@ import {
   Shield,
   Zap,
   CheckCircle,
+  Code,
+  Webhook,
+  Activity,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -24,6 +27,8 @@ export default function SettingsPage() {
     assemblyaiApiKey: "",
     defaultLanguage: "en",
     defaultVoice: "Rachel",
+    webhookUrl: "",
+    vassuApiKey: "vt_live_" + Math.random().toString(36).substring(2, 12),
   });
   const [saved, setSaved] = useState(false);
 
@@ -340,14 +345,114 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Developer Integration Section */}
+        <div className="glass-card rounded-3xl overflow-hidden shadow-indigo-500/10 border-indigo-500/10 border-2">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-8">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <Code className="h-6 w-6 text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white mb-1">
+                  Developer & CRM Integration
+                </h2>
+                <p className="text-slate-400 font-medium">
+                  Connect VassuTalks to your industry tech stack
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 space-y-8">
+            {/* API Key */}
+            <div className="grid grid-cols-1 gap-6">
+              <div>
+                <label className="flex items-center space-x-2 text-sm font-bold text-[rgb(var(--color-text-primary))] mb-3">
+                  <Key className="h-4 w-4 text-indigo-500" />
+                  <span>Your VassuTalks API Key</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={settings.vassuApiKey}
+                    className="flex-1 px-4 py-4 bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border))] rounded-2xl font-mono text-sm text-[rgb(var(--color-text-primary))]"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(settings.vassuApiKey);
+                      alert("API Key copied!");
+                    }}
+                    className="px-6 bg-[rgb(var(--color-surface-elevated))] border border-[rgb(var(--color-border))] rounded-2xl font-bold hover:bg-[rgb(var(--color-background))] transition-all"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-[rgb(var(--color-text-muted))]">
+                  Use this key to authenticate requests from your own internal
+                  systems.
+                </p>
+              </div>
+
+              {/* Webhook URL */}
+              <div>
+                <label className="flex items-center space-x-2 text-sm font-bold text-[rgb(var(--color-text-primary))] mb-3">
+                  <Webhook className="h-4 w-4 text-emerald-500" />
+                  <span>Global Webhook Endpoint</span>
+                </label>
+                <input
+                  type="text"
+                  value={settings.webhookUrl}
+                  onChange={(e) => handleChange("webhookUrl", e.target.value)}
+                  placeholder="https://your-crm.com/api/vassu-webhook"
+                  className="w-full px-4 py-4 bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border))] rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-[rgb(var(--color-text-primary))] font-medium"
+                />
+                <p className="mt-2 text-xs text-[rgb(var(--color-text-muted))]">
+                  We will send a POST request to this URL whenever a call
+                  session is completed with the full transcript and metadata.
+                </p>
+              </div>
+            </div>
+
+            {/* Event Selection */}
+            <div className="pt-4 space-y-4">
+              <p className="text-xs font-black uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+                Enabled Webhook Events
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  "Call Started",
+                  "Call Answered",
+                  "Call Completed",
+                  "Transcript Generated",
+                  "Sentiment Analyzed",
+                ].map((event, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-4 rounded-2xl bg-[rgb(var(--color-background))] border border-[rgb(var(--color-border)/0.5)]"
+                  >
+                    <span className="text-sm font-bold text-[rgb(var(--color-text-primary))]">
+                      {event}
+                    </span>
+                    <div className="w-10 h-6 bg-indigo-500 rounded-full relative">
+                      <div className="absolute top-1 right-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Save Button */}
         <div className="flex justify-center pt-8">
           <button
             onClick={handleSave}
-            className={`group relative overflow-hidden px-12 py-5 rounded-2xl font-bold text-lg shadow-2xl transition-all duration-300 hover:scale-105 ${saved
+            className={`group relative overflow-hidden px-12 py-5 rounded-2xl font-bold text-lg shadow-2xl transition-all duration-300 hover:scale-105 ${
+              saved
                 ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-emerald-500/25"
                 : "bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-teal-500/25 hover:shadow-teal-500/40"
-              }`}
+            }`}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex items-center">
