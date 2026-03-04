@@ -6,8 +6,6 @@ services:
     image: mongo:7
     container_name: vassu-mongo
     restart: always
-    ports:
-      - "27017:27017"
     volumes:
       - mongo-data:/data/db
 
@@ -31,6 +29,7 @@ services:
     environment:
       - NEXTAUTH_URL=https://vassutalks.vassuinfotech.com
       - AUTH_TRUST_HOST=true
+      - NEXTAUTH_SECRET=a4di+C6+4Mn/QMR9QlTNJeqTMSBnwy2PEpdbmzWf1n0=
     depends_on:
       - backend
 
