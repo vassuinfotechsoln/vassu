@@ -61,7 +61,7 @@ export default function Dashboard() {
   const fetchCalls = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://127.0.0.1:3001/api/calls", {
+      const response = await fetch("/api/calls", {
         signal: AbortSignal.timeout(5000),
       });
 
@@ -95,7 +95,7 @@ export default function Dashboard() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/agents", {
+      const response = await fetch("/api/agents", {
         signal: AbortSignal.timeout(5000),
       });
       if (response.ok) {
@@ -193,7 +193,7 @@ export default function Dashboard() {
     const validateServices = async () => {
       try {
         const response = await fetch(
-          "http://127.0.0.1:3001/api/settings/validate",
+          "/api/settings/validate",
           {
             signal: AbortSignal.timeout(8000),
           },

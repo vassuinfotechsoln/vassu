@@ -58,7 +58,7 @@ export default function CampaignsPage() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/agents");
+      const response = await fetch("/api/agents");
       if (response.ok) {
         const data = await response.json();
         setAgents(data || []);
@@ -92,7 +92,7 @@ export default function CampaignsPage() {
     );
 
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/calls/bulk", {
+      const response = await fetch("/api/calls/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

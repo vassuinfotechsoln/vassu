@@ -36,7 +36,7 @@ export default function AgentsPage() {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://127.0.0.1:3001/api/agents", {
+      const response = await fetch("/api/agents", {
         signal: AbortSignal.timeout(5000),
       });
 
@@ -62,7 +62,7 @@ export default function AgentsPage() {
     if (!confirm("Are you sure you want to delete this agent?")) return;
 
     try {
-      await fetch(`http://127.0.0.1:3001/api/agents/${id}`, {
+      await fetch(`/api/agents/${id}`, {
         method: "DELETE",
         signal: AbortSignal.timeout(5000),
       });

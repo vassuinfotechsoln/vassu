@@ -22,7 +22,7 @@ export default function CallsPage() {
 
   const fetchCalls = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:3001/api/calls", { signal: AbortSignal.timeout(5000) });
+      const response = await fetch("/api/calls", { signal: AbortSignal.timeout(5000) });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

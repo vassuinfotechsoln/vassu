@@ -10,7 +10,7 @@ export default function NewAgentPage() {
   const handleSave = async (agentData) => {
     try {
       console.log("Creating agent with data:", agentData);
-      const response = await fetch("http://127.0.0.1:3001/api/agents", {
+      const response = await fetch("/api/agents", {
         method: "POST",
         signal: AbortSignal.timeout(5000),
         headers: {

@@ -45,7 +45,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:3001/api/settings");
+        const res = await fetch("/api/settings");
         if (res.ok) {
           const data = await res.json();
           setSettings((prev) => ({ ...prev, ...data }));
@@ -64,7 +64,7 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:3001/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
