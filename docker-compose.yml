@@ -27,9 +27,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXTAUTH_URL=https://vassutalks.vassuinfotech.com
+      - AUTH_URL=https://vassutalks.vassuinfotech.com
       - AUTH_TRUST_HOST=true
       - NEXTAUTH_SECRET=a4di+C6+4Mn/QMR9QlTNJeqTMSBnwy2PEpdbmzWf1n0=
+      - NEXT_PUBLIC_API_URL=http://backend:4001
     depends_on:
       - backend
 

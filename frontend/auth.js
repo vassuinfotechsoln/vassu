@@ -26,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           const endpoint = mode === "signup" ? "signup" : "login";
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001"}/api/auth/${endpoint}`,
+            `${process.env.NEXT_PUBLIC_API_URL || "http://backend:4001"}/api/auth/${endpoint}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
