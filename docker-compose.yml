@@ -29,7 +29,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - AUTH_URL=https://vassutalks.vassuinfotech.com
+      - NEXTAUTH_URL=https://vassutalks.vassuinfotech.com
       - AUTH_TRUST_HOST=true
     depends_on:
       - backend
