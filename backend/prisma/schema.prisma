@@ -58,6 +58,22 @@ model Transcript {
   @@map("transcripts")
 }
 
+model CallSession {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  callId         String
+  callerNumber   String
+  receiverNumber String
+  status         String
+  startedAt      DateTime @default(now())
+  endedAt        DateTime?
+  transcript     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([callId])
+  @@map("call_sessions")
+}
+
 enum CallDirection {
   INBOUND
   OUTBOUND

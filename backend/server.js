@@ -12,10 +12,16 @@ const settingsRoutes = require("./src/routes/settings");
 const authRoutes = require("./src/routes/auth");
 const RealtimeService = require("./src/services/RealtimeService");
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5050;
 
-// ─── Auto-kill any process using our port before starting ───────────────────
+// ─── Optional: Auto-kill processes on the port (Windows only) ───────────────
 function freePort(port) {
+  // On macOS/Linux we rely on the normal EADDRINUSE error instead of trying
+  // to shell out to OS-specific tools.
+  if (process.platform !== "win32") {
+    return;
+  }
+
   try {
     const result = execSync(`netstat -ano | findstr :${port}`, {
       encoding: "utf8",
@@ -39,14 +45,8 @@ function freePort(port) {
         } catch (_) {}
       }
     }
-    if (killed.size > 0) {
-      // Small wait for OS to free the port
-      execSync("timeout /t 1 /nobreak >nul 2>&1 || sleep 1", {
-        stdio: "ignore",
-      });
-    }
   } catch (_) {
-    // netstat found nothing — port is already free
+    // netstat found nothing — port is already free (or command unavailable)
   }
 }
 
@@ -65,15 +65,27 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
-app.use(express.json({ limit: "10mb" }));
+ app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      // Keep raw body for signature verification on webhook routes
+      req.rawBody = buf.toString("utf8");
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Routes
+const verifyWebhook = require("./src/middleware/verifyWebhook");
+const viWebhookRoutes = require("./src/routes/webhook");
+
 app.use("/api/auth", authRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/transcripts", transcriptRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/webhooks/vi", verifyWebhook, viWebhookRoutes);
 
 // WebSocket
 const realtimeService = new RealtimeService();
